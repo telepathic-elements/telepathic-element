@@ -19,8 +19,12 @@ export class TelepathicElement extends HTMLElement{
         }      
     }
 
+    async loadFile(fileName){
+        return await(await(fetch(fileName))).text();
+    }
+
     async loadTemplate(fileName){
-        this.templateStr = await (await fetch(fileName)).text();
+        this.templateStr = await loadFile(fileName);
         console.log("template: ",this.templateStr);
     }
 
