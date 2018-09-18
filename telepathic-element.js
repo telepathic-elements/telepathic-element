@@ -163,4 +163,3 @@ export class DataBind {
         source.object[source.property] = this.value;
     }
 }
-window.customElements.define('telepathic-element', TelepathicElement);
