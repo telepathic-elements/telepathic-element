@@ -1,7 +1,7 @@
 export class TelepathicElement extends HTMLElement{
     constructor(){
         super();
-        this.$ = shadowRoot= this.attachShadow({mode: 'open'});
+        this.$ = this.attachShadow({mode: 'open'});
         this.templateRegex = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
         String.prototype.replaceAll = function(search, replacement) {
             let target = this;
@@ -28,7 +28,7 @@ export class TelepathicElement extends HTMLElement{
         this.templateBindings = {};
         this.templatePropertyNames = {};
         let templateStr = this.templateStr;
-        let tags = this.uniq(templateStr.match(this.templateRegex));
+        let tags = await this.uniq(templateStr.match(this.templateRegex));
         this.template = document.createElement("template");
         this.template.innerHTML =  templateStr;
         this.$.appendChild(this.template.content.cloneNode(true));
@@ -37,7 +37,7 @@ export class TelepathicElement extends HTMLElement{
     }
 
     compileTemplate(tags){
-        this.propertyNames = {}
+        this.propertyNames = {};
         for(let tag of tags){
             let property = tag.replaceAll("${","").replaceAll("}","").replaceAll("this.","");
             let object = this;
@@ -53,12 +53,16 @@ export class TelepathicElement extends HTMLElement{
                         }catch(err){
                             console.warn(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
                         }
+                        
+                       
+                    }
                     try{
                         this.templateBindings[props.join(".")] = new DataBind({object: object, property: prop});
                     }catch(err){
                         console.warn(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
                     }
-                    object = objec
+                    object = object[prop];
+                }
             }else{
                 this.templateBindings[property] = new DataBind({object: this, property: property});
             }
@@ -86,7 +90,7 @@ export class TelepathicElement extends HTMLElement{
             }
         }
     }
-
+  
     compileNodeAttributes(node,tag,property){
         if(node.hasAttributes()){
             let attrs = node.attributes;
