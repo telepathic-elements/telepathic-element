@@ -1,0 +1,102 @@
+# "telepathy"
+![mindblown][1]
+
+# README #
+Telepathic Elements are templated webcomponents with databinding designed to be so easy to use it's just like telepathy.
+
+### Tiny but powerful! 
+The entirety of Telepathic Elements is less than 5kb, RAW and < 1kb minified and compressed 
+
+### Fast!
+You can load the entire library in less than 10ms (including template rendering) even on a low end mobile device
+
+### Standards Compliant!
+Telepathy is completely standards compliant, we use webcomponents 1.x and that's it.  This means once you refactor your project to use telepathy, you won't have to refactor again in 6 months (or ever).  We aren't trying to break ground here, we just got tired of framework chasing.
+
+### Use the JS, HTML & CSS you already know!
+Telepathy has no external dependencies.  Everything is 100% vanilla JS and uses best practices throughout.
+
+### 0 effort! gives you databinding, 1 Way and 2 Way
+You can bind any attribute of any element automatically, just add a template literal that maps to some property inside your controller.
+For example if you have an object "this" with a property "message", just add "${this.message} to the element in your template file.
+For 2 way databinding, just add the same tag to the value property.
+```
+<!--One way Bind-->
+I said ${this.message}<br>
+
+<!-- Two way bind -->
+<input value="${this.message}">
+```
+
+Now any time anyone uses that input element it will automatically update "I said"
+
+Wait???  What about declaring binds, connfiguring shadow doms, setting observers and all the stuff everyone else uses???
+Yeah, we do that too, but the framework figures those things out all on it's own, like magic.
+Perhaps this is why we call the project... 
+# "telepathy"
+![mindblown][1]
+
+## Usage ##
+
+Download the telepathic-element.js webcomponent into your project then derive a new webcomponent using TelepathicElement as the base class
+
+```
+import {TelepathicElement} from "telepathic-elements/telepathic-element.js
+class MyTelepathicElement extends TelepathicElement{
+	constructor(){
+		super();
+	}
+	connectedCallback(){
+		super.connectedCallback("my-telepathic-element.html");
+		init();
+	}
+	init(){
+		this.status = {
+			message : `Hello from ${this.templateFileName}`;
+			statusClass : "ready;
+		}
+		setInterval(()=>{
+			this.seconds++;
+		},1000);
+	}
+}
+window.customElements.define('my-telepathic-element', MyTelepathicElement);
+```
+
+Next create a template file with some HTML and misc tags
+
+> my-telepathic-element.html ...
+```
+<style>
+        /* contain CSS to the parent of this, speeds up calculations and helps with browsers that need to polyfill webcomponents 1x */
+        :host {
+                display: block;
+                contain: content;
+        }
+        .ready{
+                color: black;
+                background-color: yellow;
+                font-size: 3em;
+        }
+</style>
+<div>
+	<h1 class="${status.Class}">${status.message}<h1>
+	<p>I've been telepathic for ${seconds}</p>
+</div>
+```
+
+Now the custom element has been defined, you just need to use it somewhere and it's as easy as
+>demo.html
+```
+<html>
+    <script type="module" src="my-elements/my-telepathic-element.js"></script>
+    <body>
+        <my-telepathic-element></my-telepathic-element>
+    </body>
+</html>
+
+```
+Now just serve up demo.html from any static hosting, or embedded in your own webapp and it just works
+![mindblown][1]
+
+[1]:data:image/jpeg;base64,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
