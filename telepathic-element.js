@@ -1,13 +1,10 @@
 export class TelepathicElement extends HTMLElement{
-    static describe = `TelepathicElement provides the base class for all telepathic-elements.  It is responsible for all templating and binding operations.`;
+    static describe(){return `TelepathicElement provides the base class for all telepathic-elements.  It is responsible for all templating and binding operations.`};
     constructor(tag,constructor,options){
         super();
+        this.promises = []; //Helps speed up loading to defer things to init in derived constructors
         this.$ = this.attachShadow({mode: 'open'});
         this.templateRegex = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
-        String.prototype.replaceAll = function(search, replacement) {
-            let target = this;
-            return target.split(search).join(replacement);
-        };
         this.uniq = (a) => Array.from(new Set(a));
         if(tag && className){
             if(!window.customElements.get(tag)){
@@ -176,5 +173,9 @@ export class DataBind {
         source.object[source.property] = this.value;
     }
 }
-
+//Adding this here because there's no other good place to put it
+String.prototype.replaceAll = function(search, replacement) {
+    let target = this;
+    return target.split(search).join(replacement);
+};
 export default () => { return new TelepathicElement()};
