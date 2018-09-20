@@ -1,5 +1,6 @@
+export default () => { return `TelepathicElement`};
 export class TelepathicElement extends HTMLElement{
-    constructor(){
+    constructor(tag,className){
         super();
         this.$ = this.attachShadow({mode: 'open'});
         this.templateRegex = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
@@ -8,7 +9,13 @@ export class TelepathicElement extends HTMLElement{
             return target.split(search).join(replacement);
         };
         this.uniq = (a) => Array.from(new Set(a));
+        if(tag && className){
+            if(!window.customElements.get(tag)){
+                window.customElements.define(tag, className);
+            }
+        }
     }
+    describe = `TelepathicElement provides the base class for all telepathic-elements.  It is responsible for all templating and binding operations.`;
 
     async connectedCallback(templateFileName){
         //If no template file is supplied, then you need to repeat the following somewhere in your own code
