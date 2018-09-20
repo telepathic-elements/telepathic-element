@@ -1,6 +1,6 @@
 export class TelepathicElement extends HTMLElement{
     static describe = `TelepathicElement provides the base class for all telepathic-elements.  It is responsible for all templating and binding operations.`;
-    constructor(tag,prototype){
+    constructor(tag,constructor,options){
         super();
         this.$ = this.attachShadow({mode: 'open'});
         this.templateRegex = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
@@ -11,7 +11,7 @@ export class TelepathicElement extends HTMLElement{
         this.uniq = (a) => Array.from(new Set(a));
         if(tag && className){
             if(!window.customElements.get(tag)){
-                window.customElements.define(tag, prototype);
+                window.customElements.define(tag, constructor,options);
             }
         }
     }
@@ -27,6 +27,10 @@ export class TelepathicElement extends HTMLElement{
 
     async loadFile(fileName){
         return await(await(fetch(fileName))).text();
+    }
+
+    async loadFileJSON(fileName){
+        return await(await(fetch(fileName))).json();
     }
 
     async loadTemplate(fileName){
@@ -130,14 +134,17 @@ export class DataBind {
             return _this.value;
         };
         this.valueSetter = function (val) {
+            let oldval = _this.value; 
             _this.value = val;
             for (let i = 0; i < _this.elementBindings.length; i++) {
                 let binding = _this.elementBindings[i];
                 try{
-                   
                    if(binding.element[binding.attribute] !== val){
                         if(binding.attribute == "class"){
-                            binding.element.className = val;
+                            if(binding.element.classList.contains(oldval)){
+                                binding.element.classList.remove(oldval);
+                                binding.element.classList.add(val);
+                            }
                         }else{
                             binding.element[binding.attribute] = val;
                         }
