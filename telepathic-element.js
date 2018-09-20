@@ -1,6 +1,6 @@
-export default () => { return `TelepathicElement`};
 export class TelepathicElement extends HTMLElement{
-    constructor(tag,className){
+    static describe = `TelepathicElement provides the base class for all telepathic-elements.  It is responsible for all templating and binding operations.`;
+    constructor(tag,prototype){
         super();
         this.$ = this.attachShadow({mode: 'open'});
         this.templateRegex = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
@@ -11,11 +11,10 @@ export class TelepathicElement extends HTMLElement{
         this.uniq = (a) => Array.from(new Set(a));
         if(tag && className){
             if(!window.customElements.get(tag)){
-                window.customElements.define(tag, className);
+                window.customElements.define(tag, prototype);
             }
         }
     }
-    describe = `TelepathicElement provides the base class for all telepathic-elements.  It is responsible for all templating and binding operations.`;
 
     async connectedCallback(templateFileName){
         //If no template file is supplied, then you need to repeat the following somewhere in your own code
@@ -170,3 +169,5 @@ export class DataBind {
         source.object[source.property] = this.value;
     }
 }
+
+export default () => { return new TelepathicElement()};
