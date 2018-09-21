@@ -1,27 +1,44 @@
 export class TelepathicElement extends HTMLElement{
     static describe(){return `TelepathicElement provides the base class for all telepathic-elements.  It is responsible for all templating and binding operations.`};
-    constructor(tag,constructor,options){
+
+    constructor(fileName,noshadow,delayRender){
         super();
+        this.initialized = false;
         this.promises = []; //Helps speed up loading to defer things to init in derived constructors
-        this.$ = this.attachShadow({mode: 'open'});
-        this.templateRegex = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
-        this.uniq = (a) => Array.from(new Set(a));
-        if(tag && className){
-            if(!window.customElements.get(tag)){
-                window.customElements.define(tag, constructor,options);
+        if(noshadow){
+            this.$ = this;
+        }else{
+            this.$ = this.attachShadow({mode: 'open'});
+        }
+        this.delayRender = delayRender;
+        this.templateBindings = {};
+        this.templatePropertyNames = {};
+        if(!fileName){
+            if(window[this.constructor.name]){
+                this.templateFileName = window[this.constructor.name];
             }
+        }else{
+            this.templateFileName = fileName;
+        }
+        this.promises.push(this.loadTemplate(this.templateFileName));
+    }
+
+    connectedCallback(){
+        if(!this.initialized){
+            //console.log("Connecting ",this);
+            Promise.all(this.promises)
+            .then(async ()=>{
+                await this.prepareTemplate();
+                await this.init();
+                if(!this.delayRender){
+                    this.render();
+                }
+            });
+        }else{
+            this.render();
         }
     }
-
-    async connectedCallback(templateFileName){
-        //If no template file is supplied, then you need to repeat the following somewhere in your own code
-        if(templateFileName){
-           //These are the only two functions you need to call in your derived class
-           await this.loadTemplate(templateFileName);
-           await this.prepareTemplate();
-        }      
-    }
-
+    
     async loadFile(fileName){
         return await(await(fetch(fileName))).text();
     }
@@ -31,20 +48,34 @@ export class TelepathicElement extends HTMLElement{
     }
 
     async loadTemplate(fileName){
-        this.templateStr = await this.loadFile(fileName);
-        console.log("template: ",this.templateStr);
+        if(!window[fileName]){
+            this.templateStr = await this.loadFile(fileName);
+            window[fileName] = this.templateStr;
+        }else{
+            this.templateStr = window[fileName];
+        }
+        this.templateFileName = fileName;
     }
 
     async prepareTemplate(){
-        this.templateBindings = {};
-        this.templatePropertyNames = {};
+        if(!this.templateStr){
+            console.warn("Template not yet loaded for ",this.templateFileName);
+            await this.loadTemplate(this.templateFileName);
+            console.warn("Loaded ",this.templateFileName);
+        }
+        //console.log(`Preparing ${this.templateFileName}`);
         let templateStr = this.templateStr;
-        let tags = await this.uniq(templateStr.match(this.templateRegex));
         this.template = document.createElement("template");
         this.template.innerHTML =  templateStr;
         this.$.appendChild(this.template.content.cloneNode(true));
+        //Need loader to inject here and load submodules that were hidden previously
+        await window.TelepathicLoader.Load(this.$);
+    }
+
+    async render(){
+        let tags = await uniq(this.templateStr.match(TelepathicElement.templateRegex));
         await this.compileTemplate(tags);
-        window.testObject = this;
+        //console.log(`${this.templateFileName} is rendered`);
     }
 
     compileTemplate(tags){
@@ -59,13 +90,7 @@ export class TelepathicElement extends HTMLElement{
                     let prop = properties[i];
                     props.push(prop);
                     if(!object.hasOwnProperty(prop)){
-                        try{
-                            object[prop] = {};
-                        }catch(err){
-                            console.warn(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
-                        }
-                        
-                       
+                        throw("Found undeclared property ",prop," in template ",this);
                     }
                     try{
                         this.templateBindings[props.join(".")] = new DataBind({object: object, property: prop});
@@ -75,7 +100,12 @@ export class TelepathicElement extends HTMLElement{
                     object = object[prop];
                 }
             }else{
-                this.templateBindings[property] = new DataBind({object: this, property: property});
+                try{
+                    //console.log("About to bind: ",this[property]," to ",this.templateBindings);
+                    this.templateBindings[property] = new DataBind({object: this, property: property});
+                }catch(err){
+                    console.warn(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
+                }
             }
 
             this.templatePropertyNames[tag] = property;
@@ -87,9 +117,16 @@ export class TelepathicElement extends HTMLElement{
                 let txt = textnode.textContent;
                 if(txt.includes(tag)){
                     let newNode = document.createElement("span");
-                    newNode.innerHTML = txt.replaceAll(tag,`<span data-bind='${tag}'></span>`);
+                    //console.log(`Replacing ${tag} with <span data-bind='${tag}'></span>`);
+                    if(typeof tag !== HTMLElement){
+                        newNode.innerHTML = txt.replaceAll(tag,`<span data-bind='${tag}'></span>`);
+                    }else{
+                        newNode.appendChild(tag);
+                    }
+                    //console.log("After replacement: ",newNode.innerHTML);
                     let parentNode  = textnode.parentNode;
                     parentNode.replaceChild(newNode,textnode);
+                    //console.log("Parent is now: ",parentNode);
                 }
             }
         };
@@ -110,25 +147,40 @@ export class TelepathicElement extends HTMLElement{
                 if(attr.value == tag){
                     if(attr.name == "data-bind"){
                         node.removeAttribute("data-bind");
-                        this.templateBindings[property] = this.templateBindings[property].bindElement(node,"innerHTML"); 
+                        if(this.templateBindings[property]){
+                            ////console.log("removing data-bind =",tag," on ",node," setting bind to innerHTML property is ",property);
+                            this.templateBindings[property] = this.templateBindings[property].bindElement(node,"innerHTML"); 
+                        }else{
+                            throw("Couldn't find "+property+" on ",this.templateBindings);
+                        }
                     }else{
-                        node.setAttribute(attr.name,this[property]);            
-                        this.templateBindings[property] = this.templateBindings[property].bindElement(node,attr.name,"change");
+                        node.setAttribute(attr.name,this[property]);
+                        if(this.templateBindings[property]){            
+                            this.templateBindings[property] = this.templateBindings[property].bindElement(node,attr.name,"change");
+                        }else{
+                            throw("Couldn't find "+property+" on ",this.templateBindings);
+                        }
                     }
                 }
             };
         }
     }
 }
-
+TelepathicElement.templateRegex = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
 export class DataBind {
     constructor(source) {
         let _this = this;
+        
         this.elementBindings = [];
         this.subscribeFuncs = [];
         this.value = source.object[source.property];
         this.valueGetter = function () {
-            return _this.value;
+            //console.log("DataBind.valueGetter: ",_this);
+            if(typeof _this === HTMLElement){
+                return _this;
+            }else{
+                return _this.value;
+            }
         };
         this.valueSetter = function (val) {
             let oldval = _this.value; 
@@ -136,6 +188,8 @@ export class DataBind {
             for (let i = 0; i < _this.elementBindings.length; i++) {
                 let binding = _this.elementBindings[i];
                 try{
+                   //console.log(binding.element," @ ",binding.attribute," was ",oldval," now ",val," type is ",(typeof val));
+                   
                    if(binding.element[binding.attribute] !== val){
                         if(binding.attribute == "class"){
                             if(binding.element.classList.contains(oldval)){
@@ -143,11 +197,24 @@ export class DataBind {
                                 binding.element.classList.add(val);
                             }
                         }else{
-                            binding.element[binding.attribute] = val;
+                            if(binding.attribute == "innerHTML"){// && val instanceof HTMLElement){
+                                ////console.log(binding.element," @ ",binding.attribute," = val.innerHTML: ",val.innerHTML.toString());
+                                if(val instanceof HTMLElement){
+                                    let oldNode = binding.element.firstChild;
+                                    binding.element.replaceChild(val,oldNode);
+                                }else{
+                                    binding.element.innerHTML = val;
+                                }
+                                //binding.element.innerHTML = val.innerHTML;
+                                ////console.log("afterwards - binding.element[binding.attribute] : ",binding.element[binding.attribute]);
+                            }else{
+                                console.log(binding.element," @ ",binding.attribute," = val ",val);
+                                binding.element[binding.attribute] = _this.value;
+                            }
                         }
                    }
                 }catch(error){
-                    console.error(error);
+                    //console.error(error);
                 }
             }
         };
@@ -163,7 +230,27 @@ export class DataBind {
                 binding.event = event;
             }
             this.elementBindings.push(binding);
-            element[attribute] = _this.value;
+            if(_this instanceof HTMLElement){
+                //console.error("_this is HTMLElement ",_this);                
+            }
+            if(element instanceof HTMLElement && _this.value instanceof HTMLElement){
+                //console.error(" element is HTMLElement ",element);
+                //console.error("_this.value is ",_this.value);
+                let oldNode = element.firstChild;
+                //console.log("oldNode: ",oldNode);
+                if(oldNode){
+                    element.replaceChild(_this.value,oldNode);
+                }else{
+                    element.appendChild(_this.value);
+                }
+                
+            }else{
+                element[attribute] = _this.value;
+            }
+            if(!event){
+                event = "*"
+            }
+            //console.log("Binding ",element," @ ",attribute," : ",event," to ",this);
             return _this;
         };
         Object.defineProperty(source.object, source.property, {
@@ -178,4 +265,4 @@ String.prototype.replaceAll = function(search, replacement) {
     let target = this;
     return target.split(search).join(replacement);
 };
-export default () => { return new TelepathicElement()};
+const uniq = (a) => Array.from(new Set(a));
