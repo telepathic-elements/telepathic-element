@@ -31,12 +31,14 @@ export class TelepathicElement extends HTMLElement{
                 await this.prepareTemplate();
                 await this.init();
                 if(!this.delayRender){
-                    this.render();
+                    await this.render();
+                    this.onReady();
                 }
             });
         }else{
-            this.render();
+            await this.render();
         }
+        
     }
     
     async loadFile(fileName){
