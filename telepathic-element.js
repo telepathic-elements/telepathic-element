@@ -32,7 +32,9 @@ export class TelepathicElement extends HTMLElement{
                 await this.init();
                 if(!this.delayRender){
                     await this.render();
-                    this.onReady();
+                    if(this.onReady){
+                        this.onReady();
+                    }
                 }
             });
         }else{
