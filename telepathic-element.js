@@ -23,7 +23,7 @@ export class TelepathicElement extends HTMLElement{
         this.promises.push(this.loadTemplate(this.templateFileName));
     }
 
-    connectedCallback(){
+    async connectedCallback(){
         if(!this.initialized){
             //console.log("Connecting ",this);
             Promise.all(this.promises)
