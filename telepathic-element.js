@@ -13,21 +13,22 @@ export class TelepathicElement extends HTMLElement{
         this.delayRender = delayRender;
         this.templateBindings = {};
         this.templatePropertyNames = {};
-        if(!fileName){
+        if(fileName){
+            this.templateFileName = fileName;
+        }else{
             if(window[this.constructor.name]){
                 this.templateFileName = window[this.constructor.name];
+            }else{
+                throw(`No template found for ${this.constructor.name}`);
             }
-        }else{
-            this.templateFileName = fileName;
         }
-        this.promises.push(this.loadTemplate(this.templateFileName));
     }
 
     async connectedCallback(){
         if(!this.initialized){
-            //console.log("Connecting ",this);
-            Promise.all(this.promises)
-            .then(async ()=>{
+            console.log(`Template: ${window[this.constructor.name]}`);
+            if(window[this.constructor.name]){
+                this.templateFileName = window[this.constructor.name];
                 await this.prepareTemplate();
                 await this.init();
                 if(!this.delayRender){
@@ -36,11 +37,12 @@ export class TelepathicElement extends HTMLElement{
                         this.onReady();
                     }
                 }
-            });
+            }else{
+                console.error(`Cannot connect ${this.constructor.name} because the template is undefined`);
+            }
         }else{
             await this.render();
         }
-        
     }
     
     async loadFile(fileName){
@@ -52,20 +54,24 @@ export class TelepathicElement extends HTMLElement{
     }
 
     async loadTemplate(fileName){
-        if(!window[fileName]){
-            this.templateStr = await this.loadFile(fileName);
-            window[fileName] = this.templateStr;
+        if(fileName){
+            if(!window[fileName]){
+                this.templateStr = await this.loadFile(fileName);
+                window[fileName] = this.templateStr;
+            }else{
+                this.templateStr = window[fileName];
+            }
+            this.templateFileName = fileName;
         }else{
-            this.templateStr = window[fileName];
+            throw("loadTemplate requires a fileName");
         }
-        this.templateFileName = fileName;
     }
 
     async prepareTemplate(){
         if(!this.templateStr){
             console.warn("Template not yet loaded for ",this.templateFileName);
             await this.loadTemplate(this.templateFileName);
-            console.warn("Loaded ",this.templateFileName);
+            console.log("Loaded ",this.templateFileName);
         }
         //console.log(`Preparing ${this.templateFileName}`);
         let templateStr = this.templateStr;
@@ -77,12 +83,15 @@ export class TelepathicElement extends HTMLElement{
     }
 
     async render(){
-        let tags = await uniq(this.templateStr.match(TelepathicElement.templateRegex));
-        await this.compileTemplate(tags);
-        //console.log(`${this.templateFileName} is rendered`);
+        if(this.templateStr){
+            let tags = await uniq(this.templateStr.match(TelepathicElement.templateRegex));
+            await this.compileTemplate(tags);
+        }
+        console.log(`${this.templateFileName} is rendered`);
     }
 
     compileTemplate(tags){
+        console.log("tags: ",tags);
         this.propertyNames = {};
         for(let tag of tags){
             let property = tag.replaceAll("${","").replaceAll("}","").replaceAll("this.","");
@@ -105,7 +114,7 @@ export class TelepathicElement extends HTMLElement{
                 }
             }else{
                 try{
-                    //console.log("About to bind: ",this[property]," to ",this.templateBindings);
+                    console.log("About to bind: ",this[property]," to ",this.templateBindings);
                     this.templateBindings[property] = new DataBind({object: this, property: property});
                 }catch(err){
                     console.warn(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
@@ -138,6 +147,7 @@ export class TelepathicElement extends HTMLElement{
         for(let tag of tags){
             let property = this.templatePropertyNames[tag];
             for(let node of this.$.querySelectorAll("*")){
+                console.log("compiling: "+tag+" : "+property+" against ",node);
                 this.compileNodeAttributes(node, tag, property);
             }
         }
@@ -147,18 +157,31 @@ export class TelepathicElement extends HTMLElement{
         if(node.hasAttributes()){
             let attrs = node.attributes;
             for(var i = attrs.length - 1; i >= 0; i--) {
+                
                 let attr = attrs[i];
                 if(attr.value == tag){
                     if(attr.name == "data-bind"){
                         node.removeAttribute("data-bind");
                         if(this.templateBindings[property]){
-                            ////console.log("removing data-bind =",tag," on ",node," setting bind to innerHTML property is ",property);
+                            console.log("removing data-bind =",tag," on ",node," setting bind to innerHTML property is ",property);
                             this.templateBindings[property] = this.templateBindings[property].bindElement(node,"innerHTML"); 
                         }else{
                             throw("Couldn't find "+property+" on ",this.templateBindings);
                         }
                     }else{
-                        node.setAttribute(attr.name,this[property]);
+                       
+                        if(this[property] == tag && node.getAttribute(attr.name) == tag){
+                            if(attr.name != "value"){
+                                console.log("Clearing "+attr.name+" on ",node);
+                                node.setAttribute(attr.name,"");
+                            }else{
+                                console.log("Clearing value for "+attr.name+" on ",node);
+                                node.value ="";
+                            }
+                        }else{
+                            console.log("Setting "+attr.name+" to ",this[property]+" on ",node);
+                            node.setAttribute(attr.name,this[property]);
+                        }
                         if(this.templateBindings[property]){            
                             this.templateBindings[property] = this.templateBindings[property].bindElement(node,attr.name,"change");
                         }else{
@@ -201,19 +224,30 @@ export class DataBind {
                                 binding.element.classList.add(val);
                             }
                         }else{
-                            if(binding.attribute == "innerHTML"){// && val instanceof HTMLElement){
-                                ////console.log(binding.element," @ ",binding.attribute," = val.innerHTML: ",val.innerHTML.toString());
-                                if(val instanceof HTMLElement){
-                                    let oldNode = binding.element.firstChild;
-                                    binding.element.replaceChild(val,oldNode);
+                            if(binding.attribute){
+                                if(binding.attribute == "innerHTML"){// && val instanceof HTMLElement){
+                                    ////console.log(binding.element," @ ",binding.attribute," = val.innerHTML: ",val.innerHTML.toString());
+                                    if(val instanceof HTMLElement){
+                                        let oldNode = binding.element.firstChild;
+                                        binding.element.replaceChild(val,oldNode);
+                                    }else{
+                                        binding.element.innerHTML = val;
+                                    }
+                                    //binding.element.innerHTML = val.innerHTML;
+                                    ////console.log("afterwards - binding.element[binding.attribute] : ",binding.element[binding.attribute]);
                                 }else{
-                                    binding.element.innerHTML = val;
+                                    
+                                    if(binding.attribute !== "value"){
+                                        console.log(binding.element," @ ",binding.attribute," = ",val);
+                                        binding.element.setAttribute(binding.attribute,val);
+                                    }else{
+                                        console.log(binding.element," = ",val);
+                                        binding.element.value = val;
+                                    }
                                 }
-                                //binding.element.innerHTML = val.innerHTML;
-                                ////console.log("afterwards - binding.element[binding.attribute] : ",binding.element[binding.attribute]);
                             }else{
-                                console.log(binding.element," @ ",binding.attribute," = val ",val);
-                                binding.element[binding.attribute] = _this.value;
+                                throw("Trying to update value on empty attribute for ",binding.element," with ",_this);
+
                             }
                         }
                    }
