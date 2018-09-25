@@ -16,6 +16,10 @@ export class TelepathicElement extends HTMLElement{
                 this.$ = this;
             }
         }
+
+        if(!this.$){
+            this.$ = this;
+        }
         this.delayRender = delayRender;
         this.templateBindings = {};
         this.templatePropertyNames = {};
