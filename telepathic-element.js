@@ -29,14 +29,19 @@ export class TelepathicElement extends HTMLElement{
             console.log(`Template: ${window[this.constructor.name]}`);
             if(window[this.constructor.name]){
                 this.templateFileName = window[this.constructor.name];
-                await this.prepareTemplate();
-                await this.init();
-                if(!this.delayRender){
-                    await this.render();
-                    if(this.onReady){
-                        this.onReady();
+                Promise.all(this.promises)
+                .then(async ()=>{
+                    await this.prepareTemplate();
+                    if(this['init']){
+                        await this.init();
                     }
-                }
+                    if(!this.delayRender){
+                        await this.render();
+                        if(this.onReady){
+                            this.onReady();
+                        }
+                    }
+                });
             }else{
                 console.error(`Cannot connect ${this.constructor.name} because the template is undefined`);
             }
@@ -95,6 +100,7 @@ export class TelepathicElement extends HTMLElement{
         this.propertyNames = {};
         for(let tag of tags){
             let property = tag.replaceAll("${","").replaceAll("}","").replaceAll("this.","");
+        
             let object = this;
             if(property.includes(".")){
                 let properties  = property.split(".");
@@ -103,7 +109,8 @@ export class TelepathicElement extends HTMLElement{
                     let prop = properties[i];
                     props.push(prop);
                     if(!object.hasOwnProperty(prop)){
-                        throw("Found undeclared property ",prop," in template ",this);
+                        console.warn("Found undeclared property ",props.join('.')," in template ",this);
+                        object[prop] = 'undeclared';
                     }
                     try{
                         this.templateBindings[props.join(".")] = new DataBind({object: object, property: prop});
@@ -114,7 +121,11 @@ export class TelepathicElement extends HTMLElement{
                 }
             }else{
                 try{
-                    console.log("About to bind: ",this[property]," to ",this.templateBindings);
+                    console.log("About to bind "+property+": ",this[property]," to ",this.templateBindings);
+                    if(this[property]=== undefined){
+                        console.warn(property+" was undefined");
+                        this[property] = "undefined"; 
+                    }
                     this.templateBindings[property] = new DataBind({object: this, property: property});
                 }catch(err){
                     console.warn(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
@@ -147,7 +158,7 @@ export class TelepathicElement extends HTMLElement{
         for(let tag of tags){
             let property = this.templatePropertyNames[tag];
             for(let node of this.$.querySelectorAll("*")){
-                console.log("compiling: "+tag+" : "+property+" against ",node);
+                //console.log("compiling: "+tag+" : "+property+" against ",node);
                 this.compileNodeAttributes(node, tag, property);
             }
         }
