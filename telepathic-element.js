@@ -108,7 +108,7 @@ export class TelepathicElement extends HTMLElement{
                 for(let i = 0; i <= properties.length -1; i++){
                     let prop = properties[i];
                     props.push(prop);
-                    if(!object.hasOwnProperty(prop)){
+                    if(object[prop] === undefined){
                         console.warn("Found undeclared property ",props.join('.')," in template ",this);
                         object[prop] = 'undeclared';
                     }
