@@ -8,7 +8,13 @@ export class TelepathicElement extends HTMLElement{
         if(noshadow){
             this.$ = this;
         }else{
-            this.$ = this.attachShadow({mode: 'open'});
+            try{
+                this.$ = this.attachShadow({mode: 'open'});
+            }catch(err){
+                //Firefox and some others don't support shadow dom completely or at all.
+                console.warn(err);
+                this.$ = this;
+            }
         }
         this.delayRender = delayRender;
         this.templateBindings = {};
