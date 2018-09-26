@@ -16,7 +16,6 @@ export class TelepathicElement extends HTMLElement{
                 this.$ = this;
             }
         }
-
         if(!this.$){
             this.$ = this;
         }
@@ -94,7 +93,7 @@ export class TelepathicElement extends HTMLElement{
         this.template.innerHTML =  templateStr;
         this.$.appendChild(this.template.content.cloneNode(true));
         //Need loader to inject here and load submodules that were hidden previously
-        await window.TelepathicLoader.Load(this.$);
+        window.TelepathicLoader.Load(this.$);
     }
 
     async render(){
@@ -178,13 +177,12 @@ export class TelepathicElement extends HTMLElement{
         if(node.hasAttributes()){
             let attrs = node.attributes;
             for(var i = attrs.length - 1; i >= 0; i--) {
-                
                 let attr = attrs[i];
                 if(attr.value == tag){
                     if(attr.name == "data-bind"){
                         node.removeAttribute("data-bind");
                         if(this.templateBindings[property]){
-                            console.log("removing data-bind =",tag," on ",node," setting bind to innerHTML property is ",property);
+                            //console.log("removing data-bind =",tag," on ",node," setting bind to innerHTML property is ",property);
                             this.templateBindings[property] = this.templateBindings[property].bindElement(node,"innerHTML"); 
                         }else{
                             throw("Couldn't find "+property+" on ",this.templateBindings);
@@ -193,14 +191,14 @@ export class TelepathicElement extends HTMLElement{
                        
                         if(this[property] == tag && node.getAttribute(attr.name) == tag){
                             if(attr.name != "value"){
-                                console.log("Clearing "+attr.name+" on ",node);
+                                //console.log("Clearing "+attr.name+" on ",node);
                                 node.setAttribute(attr.name,"");
                             }else{
-                                console.log("Clearing value for "+attr.name+" on ",node);
+                                //console.log("Clearing value for "+attr.name+" on ",node);
                                 node.value ="";
                             }
                         }else{
-                            console.log("Setting "+attr.name+" to ",this[property]+" on ",node);
+                            //console.log("Setting "+attr.name+" to ",this[property]+" on ",node);
                             node.setAttribute(attr.name,this[property]);
                         }
                         if(this.templateBindings[property]){            
