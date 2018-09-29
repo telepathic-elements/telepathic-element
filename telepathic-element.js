@@ -1,9 +1,12 @@
+import {Marked} from '../marked/lib/marked-class.mjs';
+
 export class TelepathicElement extends HTMLElement{
     static describe(){return `TelepathicElement provides the base class for all telepathic-elements.  It is responsible for all templating and binding operations.`};
 
     constructor(fileName,noshadow,delayRender){
         super();
         this.initialized = false;
+        
         this.promises = []; //Helps speed up loading to defer things to init in derived constructors
         if(noshadow){
             this.$ = this;
@@ -24,43 +27,38 @@ export class TelepathicElement extends HTMLElement{
         this.templatePropertyNames = {};
         if(fileName){
             this.templateFileName = fileName;
-        }else{
-            if(window[this.constructor.name]){
-                this.templateFileName = window[this.constructor.name];
-            }else{
-                throw(`No template found for ${this.constructor.name}`);
-            }
         }
     }
 
     async connectedCallback(){
         if(!this.initialized){
-            console.log(`Template: ${window[this.constructor.name]}`);
-            if(window[this.constructor.name]){
-                this.templateFileName = window[this.constructor.name];
-                Promise.all(this.promises)
-                .then(async ()=>{
-                    await this.prepareTemplate();
-                    if(this['init']){
-                        await this.init();
+            this.className = this.constructor.name;
+            await Promise.all(this.promises)
+            .then(async ()=>{
+                await this.prepareTemplate();
+                if(this['init']){
+                    await this.init();
+                }
+                if(!this.delayRender){
+                    await this.render();
+                    if(this.onReady){
+                        this.onReady();
                     }
-                    if(!this.delayRender){
-                        await this.render();
-                        if(this.onReady){
-                            this.onReady();
-                        }
-                    }
-                });
-            }else{
-                console.error(`Cannot connect ${this.constructor.name} because the template is undefined`);
-            }
+                }
+            });
         }else{
             await this.render();
         }
     }
     
     async loadFile(fileName){
-        return await(await(fetch(fileName))).text();
+        console.log("Loading: ",fileName);
+        let response = await fetch(fileName);
+        if(response.ok){
+            return await response.text();
+        }else{
+            throw(`${response.status} : ${response.statusText}`);
+        }
     }
 
     async loadFileJSON(fileName){
@@ -68,23 +66,49 @@ export class TelepathicElement extends HTMLElement{
     }
 
     async loadTemplate(fileName){
+        let file;
+        let marked = new Marked();
         if(fileName){
             if(!window[fileName]){
-                this.templateStr = await this.loadFile(fileName);
+                file = await this.loadFile(fileName);
+                this.templateStr = marked.parse(file);
                 window[fileName] = this.templateStr;
             }else{
                 this.templateStr = window[fileName];
             }
             this.templateFileName = fileName;
         }else{
-            throw("loadTemplate requires a fileName");
+            let path = window[this.className];
+            let tagName = this.tagName.toLowerCase();
+            let mdFile= `${path}/${tagName}/${tagName}.md`;
+            try{
+                file = await this.loadFile(mdFile);
+                try{
+                    this.templateStr = await marked.parse(file);
+                    this.templateFileName = mdFile;
+                }catch(err){
+                    console.error(err);
+                }
+            }catch(err){
+                //We're still going to try and parse any markdown we find in the template whether it's  .md or .html
+                let htmlFile = `${path}/${tagName}/${tagName}.html`;
+                file = await this.loadFile(htmlFile);
+                this.templateStr = file;
+                this.templateFileName = htmlFile;
+            }
+            
         }
+        console.log("this.templateFileName: ",this.templateFileName);
+        //console.log("file: ",file);
+        //console.log("this.templateStr: ",this.templateStr);
     }
 
-    async prepareTemplate(){
+    async prepareTemplate(fileName){
         if(!this.templateStr){
-            console.warn("Template not yet loaded for ",this.templateFileName);
-            await this.loadTemplate(this.templateFileName);
+            if(fileName){
+                console.warn("Template not yet loaded for ",fileName);
+            }
+            await this.loadTemplate(fileName);
             console.log("Loaded ",this.templateFileName);
         }
         //console.log(`Preparing ${this.templateFileName}`);
@@ -257,10 +281,10 @@ export class DataBind {
                                 }else{
                                     
                                     if(binding.attribute !== "value"){
-                                        console.log(binding.element," @ ",binding.attribute," = ",val);
+                                        //console.log(binding.element," @ ",binding.attribute," = ",val);
                                         binding.element.setAttribute(binding.attribute,val);
                                     }else{
-                                        console.log(binding.element," = ",val);
+                                        //console.log(binding.element," = ",val);
                                         binding.element.value = val;
                                     }
                                 }
