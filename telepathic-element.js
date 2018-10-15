@@ -15,7 +15,7 @@ export class TelepathicElement extends HTMLElement{
                 this.$ = this.attachShadow({mode: 'open'});
             }catch(err){
                 //Firefox and some others don't support shadow dom completely or at all.
-                console.warn(err);
+                console.debug(err);
                 this.$ = this;
             }
         }
@@ -30,6 +30,9 @@ export class TelepathicElement extends HTMLElement{
         }
     }
 
+    sleep(ms){
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
     async connectedCallback(){
         if(!this.initialized){
             this.className = this.constructor.name;
@@ -47,12 +50,17 @@ export class TelepathicElement extends HTMLElement{
                 }
             });
         }else{
-            await this.render();
+            try{
+                await this.render();
+            }catch(err){
+                console.error(`Error rendering: ${this.constructor.name}`);
+                console.error(err);
+            }
         }
     }
     
     async loadFile(fileName){
-        console.log("Loading: ",fileName);
+        console.debug("Loading: ",fileName);
         let response = await fetch(fileName);
         if(response.ok){
             return await response.text();
@@ -98,20 +106,20 @@ export class TelepathicElement extends HTMLElement{
             }
             
         }
-        console.log("this.templateFileName: ",this.templateFileName);
-        //console.log("file: ",file);
-        //console.log("this.templateStr: ",this.templateStr);
+        console.debug("this.templateFileName: ",this.templateFileName);
+        //console.debug("file: ",file);
+        //console.debug("this.templateStr: ",this.templateStr);
     }
 
     async prepareTemplate(fileName){
         if(!this.templateStr){
             if(fileName){
-                console.warn("Template not yet loaded for ",fileName);
+                console.debug("Template not yet loaded for ",fileName);
             }
             await this.loadTemplate(fileName);
-            console.log("Loaded ",this.templateFileName);
+            console.debug("Loaded ",this.templateFileName);
         }
-        //console.log(`Preparing ${this.templateFileName}`);
+        //console.debug(`Preparing ${this.templateFileName}`);
         let templateStr = this.templateStr;
         this.template = document.createElement("template");
         this.template.innerHTML =  templateStr;
@@ -125,11 +133,11 @@ export class TelepathicElement extends HTMLElement{
             let tags = await uniq(this.templateStr.match(TelepathicElement.templateRegex));
             await this.compileTemplate(tags);
         }
-        console.log(`${this.templateFileName} is rendered`);
+        console.debug(`${this.templateFileName} is rendered`);
     }
 
     compileTemplate(tags){
-        console.log("tags: ",tags);
+        console.debug("tags: ",tags);
         this.propertyNames = {};
         for(let tag of tags){
             let property = tag.replaceAll("${","").replaceAll("}","").replaceAll("this.","");
@@ -142,26 +150,26 @@ export class TelepathicElement extends HTMLElement{
                     let prop = properties[i];
                     props.push(prop);
                     if(object[prop] === undefined){
-                        console.warn("Found undeclared property ",props.join('.')," in template ",this);
+                        console.debug("Found undeclared property ",props.join('.')," in template ",this);
                         object[prop] = 'undeclared';
                     }
                     try{
                         this.templateBindings[props.join(".")] = new DataBind({object: object, property: prop});
                     }catch(err){
-                        console.warn(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
+                        console.debug(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
                     }
                     object = object[prop];
                 }
             }else{
                 try{
-                    console.log("About to bind "+property+": ",this[property]," to ",this.templateBindings);
+                    console.debug("About to bind "+property+": ",this[property]," to ",this.templateBindings);
                     if(this[property]=== undefined){
-                        console.warn(property+" was undefined");
+                        console.debug(property+" was undefined");
                         this[property] = "undefined"; 
                     }
                     this.templateBindings[property] = new DataBind({object: this, property: property});
                 }catch(err){
-                    console.warn(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
+                    console.debug(`Looks like you tried to bind a readonly property somewhere, if so disregard this ${err}`);
                 }
             }
 
@@ -174,16 +182,16 @@ export class TelepathicElement extends HTMLElement{
                 let txt = textnode.textContent;
                 if(txt.includes(tag)){
                     let newNode = document.createElement("span");
-                    //console.log(`Replacing ${tag} with <span data-bind='${tag}'></span>`);
+                    //console.debug(`Replacing ${tag} with <span data-bind='${tag}'></span>`);
                     if(typeof tag !== HTMLElement){
                         newNode.innerHTML = txt.replaceAll(tag,`<span data-bind='${tag}'></span>`);
                     }else{
                         newNode.appendChild(tag);
                     }
-                    //console.log("After replacement: ",newNode.innerHTML);
+                    //console.debug("After replacement: ",newNode.innerHTML);
                     let parentNode  = textnode.parentNode;
                     parentNode.replaceChild(newNode,textnode);
-                    //console.log("Parent is now: ",parentNode);
+                    //console.debug("Parent is now: ",parentNode);
                 }
             }
         };
@@ -191,7 +199,7 @@ export class TelepathicElement extends HTMLElement{
         for(let tag of tags){
             let property = this.templatePropertyNames[tag];
             for(let node of this.$.querySelectorAll("*")){
-                //console.log("compiling: "+tag+" : "+property+" against ",node);
+                //console.debug("compiling: "+tag+" : "+property+" against ",node);
                 this.compileNodeAttributes(node, tag, property);
             }
         }
@@ -206,7 +214,7 @@ export class TelepathicElement extends HTMLElement{
                     if(attr.name == "data-bind"){
                         node.removeAttribute("data-bind");
                         if(this.templateBindings[property]){
-                            //console.log("removing data-bind =",tag," on ",node," setting bind to innerHTML property is ",property);
+                            //console.debug("removing data-bind =",tag," on ",node," setting bind to innerHTML property is ",property);
                             this.templateBindings[property] = this.templateBindings[property].bindElement(node,"innerHTML"); 
                         }else{
                             throw("Couldn't find "+property+" on ",this.templateBindings);
@@ -215,14 +223,14 @@ export class TelepathicElement extends HTMLElement{
                        
                         if(this[property] == tag && node.getAttribute(attr.name) == tag){
                             if(attr.name != "value"){
-                                //console.log("Clearing "+attr.name+" on ",node);
+                                //console.debug("Clearing "+attr.name+" on ",node);
                                 node.setAttribute(attr.name,"");
                             }else{
-                                //console.log("Clearing value for "+attr.name+" on ",node);
+                                //console.debug("Clearing value for "+attr.name+" on ",node);
                                 node.value ="";
                             }
                         }else{
-                            //console.log("Setting "+attr.name+" to ",this[property]+" on ",node);
+                            //console.debug("Setting "+attr.name+" to ",this[property]+" on ",node);
                             node.setAttribute(attr.name,this[property]);
                         }
                         if(this.templateBindings[property]){            
@@ -245,7 +253,7 @@ export class DataBind {
         this.subscribeFuncs = [];
         this.value = source.object[source.property];
         this.valueGetter = function () {
-            //console.log("DataBind.valueGetter: ",_this);
+            //console.debug("DataBind.valueGetter: ",_this);
             if(typeof _this === HTMLElement){
                 return _this;
             }else{
@@ -258,7 +266,7 @@ export class DataBind {
             for (let i = 0; i < _this.elementBindings.length; i++) {
                 let binding = _this.elementBindings[i];
                 try{
-                   //console.log(binding.element," @ ",binding.attribute," was ",oldval," now ",val," type is ",(typeof val));
+                   //console.debug(binding.element," @ ",binding.attribute," was ",oldval," now ",val," type is ",(typeof val));
                    
                    if(binding.element[binding.attribute] !== val){
                         if(binding.attribute == "class"){
@@ -269,7 +277,7 @@ export class DataBind {
                         }else{
                             if(binding.attribute){
                                 if(binding.attribute == "innerHTML"){// && val instanceof HTMLElement){
-                                    ////console.log(binding.element," @ ",binding.attribute," = val.innerHTML: ",val.innerHTML.toString());
+                                    ////console.debug(binding.element," @ ",binding.attribute," = val.innerHTML: ",val.innerHTML.toString());
                                     if(val instanceof HTMLElement){
                                         let oldNode = binding.element.firstChild;
                                         binding.element.replaceChild(val,oldNode);
@@ -277,14 +285,14 @@ export class DataBind {
                                         binding.element.innerHTML = val;
                                     }
                                     //binding.element.innerHTML = val.innerHTML;
-                                    ////console.log("afterwards - binding.element[binding.attribute] : ",binding.element[binding.attribute]);
+                                    ////console.debug("afterwards - binding.element[binding.attribute] : ",binding.element[binding.attribute]);
                                 }else{
                                     
                                     if(binding.attribute !== "value"){
-                                        //console.log(binding.element," @ ",binding.attribute," = ",val);
+                                        //console.debug(binding.element," @ ",binding.attribute," = ",val);
                                         binding.element.setAttribute(binding.attribute,val);
                                     }else{
-                                        //console.log(binding.element," = ",val);
+                                        //console.debug(binding.element," = ",val);
                                         binding.element.value = val;
                                     }
                                 }
@@ -318,7 +326,7 @@ export class DataBind {
                 //console.error(" element is HTMLElement ",element);
                 //console.error("_this.value is ",_this.value);
                 let oldNode = element.firstChild;
-                //console.log("oldNode: ",oldNode);
+                //console.debug("oldNode: ",oldNode);
                 if(oldNode){
                     element.replaceChild(_this.value,oldNode);
                 }else{
@@ -331,7 +339,7 @@ export class DataBind {
             if(!event){
                 event = "*"
             }
-            //console.log("Binding ",element," @ ",attribute," : ",event," to ",this);
+            //console.debug("Binding ",element," @ ",attribute," : ",event," to ",this);
             return _this;
         };
         Object.defineProperty(source.object, source.property, {
