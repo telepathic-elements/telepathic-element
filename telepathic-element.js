@@ -1,4 +1,4 @@
-import {Marked} from '../marked/lib/marked-class.mjs';
+//import {Marked} from '../marked/lib/marked-class.mjs';
 
 export class TelepathicElement extends HTMLElement{
     static describe(){return `TelepathicElement provides the base class for all telepathic-elements.  It is responsible for all templating and binding operations.`};
@@ -28,6 +28,7 @@ export class TelepathicElement extends HTMLElement{
         if(fileName){
             this.templateFileName = fileName;
         }
+
     }
 
     sleep(ms){
@@ -75,6 +76,7 @@ export class TelepathicElement extends HTMLElement{
 
     async loadTemplate(fileName){
         let file;
+        /*
         let marked = new Marked();
         if(fileName){
             if(!window[fileName]){
@@ -85,27 +87,16 @@ export class TelepathicElement extends HTMLElement{
                 this.templateStr = window[fileName];
             }
             this.templateFileName = fileName;
-        }else{
+        }else{*/
             let path = window[this.className];
             let tagName = this.tagName.toLowerCase();
-            let mdFile= `${path}/${tagName}/${tagName}.md`;
-            try{
-                file = await this.loadFile(mdFile);
-                try{
-                    this.templateStr = await marked.parse(file);
-                    this.templateFileName = mdFile;
-                }catch(err){
-                    console.error(err);
-                }
-            }catch(err){
-                //We're still going to try and parse any markdown we find in the template whether it's  .md or .html
-                let htmlFile = `${path}/${tagName}/${tagName}.html`;
-                file = await this.loadFile(htmlFile);
-                this.templateStr = file;
-                this.templateFileName = htmlFile;
-            }
-            
-        }
+ 
+            //We're still going to try and parse any markdown we find in the template whether it's  .md or .html
+            let htmlFile = `${path}/${tagName}/${tagName}.html`;
+            file = await this.loadFile(htmlFile);
+            this.templateStr = file;
+            this.templateFileName = htmlFile;
+       // }
         console.debug("this.templateFileName: ",this.templateFileName);
         //console.debug("file: ",file);
         //console.debug("this.templateStr: ",this.templateStr);
@@ -132,10 +123,23 @@ export class TelepathicElement extends HTMLElement{
         if(this.templateStr){
             let tags = await uniq(this.templateStr.match(TelepathicElement.templateRegex));
             await this.compileTemplate(tags);
+            await this.setIDs();
         }
         console.debug(`${this.templateFileName} is rendered`);
     }
 
+    async setIDs(){
+        let elements = this.$.querySelectorAll("*");
+        elements.forEach((element)=>{
+            let id = element.id;
+            if(id){
+                let varname = id.replaceAll("-","_");
+                this[varname] = element;
+                this[varname].owner = this;
+                console.debug(`setting ${varname} on ${this.localName}`);
+            }
+        });
+    }
     compileTemplate(tags){
         console.debug("tags: ",tags);
         this.propertyNames = {};
